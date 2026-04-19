@@ -30,25 +30,15 @@ For a detailed step-by-step guide on prerequisites and environment setup, see th
 ### 1. Provision Infrastructure
 Everything is containerized. Start the database, collector, and both backend services:
 ```bash
-docker-compose up -d
+make infra-up
 ```
 
 ### 2. Manual Execution (Development)
-If running outside of Docker, you must start both services:
-
-**Ingest Service (Hot Path):**
-```bash
-cd backend
-export INGEST_PORT=8081
-cargo run --bin ingest_service
-```
-
-**Web API Service (Cold Path):**
-```bash
-cd backend
-export API_PORT=8080
-cargo run --bin api_service
-```
+Use the **Makefile** for common dev commands:
+- `make ingest`: Start Ingest Service (8081).
+- `make api`: Start Web API Service (8080).
+- `make frontend`: Start WASM Dashboard (3000).
+- `make verify`: Run security audit verification.
 
 ### 3. Verify Security
 To verify the cryptographic integrity of the audit logs:
