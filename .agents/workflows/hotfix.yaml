@@ -1,0 +1,160 @@
+id: hotfix
+name: "Production Hotfix Workflow"
+version: "1.0.0"
+description: |
+  Accelerated workflow for critical production incidents.
+  Bypasses non-critical stages but maintains minimum safety gates.
+  Maximum time target: 2 hours from incident to production fix.
+
+trigger:
+  type: "incident | manual"
+  input_schema:
+    incident_id: "string"
+    severity: "P0|P1"
+    incident_description: "string"
+    affected_services: ["list"]
+    reported_at: "ISO8601"
+  guard:
+    condition: "severity in [P0, P1]"
+    on_fail: "redirect to feature_development workflow"
+
+sla_targets:
+  P0:
+    time_to_fix: "< 2 hours"
+    time_to_detect: "< 5 minutes (automated)"
+    time_to_communicate: "< 15 minutes"
+  P1:
+    time_to_fix: "< 8 hours"
+    time_to_communicate: "< 30 minutes"
+
+stages:
+
+  stage_1_triage:
+    name: "Rapid Triage & Spec"
+    mode: "sequential"
+    timeout: "15 minutes"
+    agent: ba_token_optimizer
+    mode: "hotfix"           # Streamlined: skip non-functional requirements
+    input: "incident_description + affected_services + error_logs"
+    output: "hotfix_spec"
+    skills:
+      - requirement_extraction  # Only extract fix requirements
+      - structured_output
+    notes: "BA accepts higher ambiguity tolerance in hotfix mode (time-box: 10min)"
+
+  stage_2_root_cause:
+    name: "Root Cause Analysis + Fix Design"
+    mode: "sequential"
+    depends_on: ["stage_1_triage"]
+    timeout: "20 minutes"
+    parallel:
+      - agent: architect
+        input: "hotfix_spec + affected_service_code"
+        action: "Identify root cause and minimal safe fix approach"
+        output: "fix_approach"
+        notes: "No new ADR required if fix < 10 lines"
+      - agent: researcher
+        input: "error_signature + affected_library"
+        action: "Search for known CVE or bug report matching issue"
+        output: "known_issue_report"
+        trigger: "if error looks like third-party issue"
+
+  stage_3_implement:
+    name: "Fix Implementation"
+    mode: "sequential"
+    depends_on: ["stage_2_root_cause"]
+    timeout: "30 minutes"
+    agent: dev_executor
+    input: "fix_approach + affected_code"
+    output: "fix_diff"
+    skills:
+      - tdd_implementation  # Even in hotfix: write test that proves the bug first
+      - structured_output
+    notes: "Coverage requirement relaxed to 70% for hotfix"
+
+  stage_4_rapid_review:
+    name: "Accelerated Review (Parallel)"
+    mode: "parallel"
+    depends_on: ["stage_3_implement"]
+    timeout: "20 minutes"
+    agents:
+      - agent: dev_reviewer
+        input: "fix_diff"
+        mode: "hotfix"  # Focus only on: correctness + regression risk
+        output: "review_result"
+        timeout: "10 minutes"
+
+      - agent: qa
+        input: "fix_diff + affected_acceptance_criteria"
+        mode: "smoke_only"  # Skip full regression, run smoke + targeted tests only
+        output: "qa_result"
+        timeout: "15 minutes"
+
+      - agent: security
+        input: "fix_diff"
+        mode: "targeted"  # Only check: no new secrets, no injection, no auth bypass
+        output: "security_result"
+        timeout: "10 minutes"
+
+    gate:
+      name: "hotfix_approval_gate"
+      type: "AND"
+      conditions:
+        - "dev_reviewer.findings_critical == 0"
+        - "qa.decision != FAILED"
+        - "security.decision != BLOCKED"
+      notes: "MAJOR findings may be accepted with documented risk acceptance"
+      risk_acceptance_required_by: "human_engineering_lead"
+
+  stage_5_deploy:
+    name: "Expedited Deployment"
+    mode: "sequential"
+    depends_on: ["stage_4_rapid_review"]
+    timeout: "30 minutes"
+    agent: devops
+    input: "fix_diff + approval_signals"
+    strategy: "blue_green"  # Not canary — faster rollback for P0
+    skills:
+      - progressive_delivery
+      - audit_trail
+    validation_window: "10 minutes"  # Reduced from 30 minutes for speed
+    emergency_contacts: ["on_call_sre", "engineering_lead"]
+
+  stage_6_post_mortem_init:
+    name: "Post-Mortem Initiation"
+    mode: "sequential"
+    depends_on: ["stage_5_deploy"]
+    agents:
+      - agent: platform_sre
+        action: "Create post-mortem document from incident timeline"
+        output: "post_mortem_draft"
+      - agent: ba_token_optimizer
+        action: "Convert incident findings to new QA regression test requirements"
+        output: "regression_requirements"
+
+workflow_complete:
+  success: "Fix deployed, incident resolved, post-mortem initiated"
+  artifacts:
+    - incident_timeline
+    - hotfix_spec
+    - fix_approach
+    - fix_diff
+    - review_result
+    - qa_result
+    - security_result
+    - deployment_record
+    - post_mortem_draft
+
+communication_protocol:
+  on_incident_start:
+    notify: ["engineering_lead", "product_owner", "on_call_sre"]
+    channel: "slack_incidents"
+  update_frequency: "every_15_minutes"
+  on_resolution:
+    notify: "all_stakeholders"
+    include: "timeline + root_cause + actions_taken"
+
+rollback:
+  auto_trigger: "error_rate > 2% within 10 minutes of hotfix deploy"
+  manual_trigger: "any team member can trigger via /rollback command"
+  estimated_time: "< 60 seconds (blue-green)"

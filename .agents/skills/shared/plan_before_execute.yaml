@@ -1,0 +1,113 @@
+id: plan_before_execute
+name: "Plan-Before-Execute"
+version: "1.0.0"
+category: "shared"
+applicable_to: "all_agents"
+
+description: |
+  Every agent MUST produce and validate an execution plan BEFORE taking any
+  action. This prevents wasted computation, catches misunderstandings early,
+  and makes agent behavior auditable and predictable.
+
+  Pattern: Plan → Self-Validate → [Human/Gate Review if HIGH risk] → Execute
+
+why_this_matters:
+  - "Catches misunderstood inputs BEFORE spending tokens on wrong output"
+  - "Makes agent behavior transparent and auditable"
+  - "Allows early abort if plan is infeasible or contradicts constraints"
+  - "Enables parallel planning with sequential execution"
+  - "Reduces total token cost: a short plan prevents long wrong outputs"
+
+plan_phase:
+  prompt_prefix: |
+    PLANNING PHASE — Do NOT execute yet. Only produce an execution plan.
+
+    Before acting, you must:
+    1. State your understanding of the task in 2-3 sentences
+    2. List the exact steps you will take (ordered, numbered)
+    3. State what your output will contain (fields, format)
+    4. Identify any risks, ambiguities, or unknowns
+    5. Estimate token cost: input consumed + output you will produce
+    6. Flag if human review is required before execution
+
+    Output ONLY the plan in this YAML structure. Do NOT start executing.
+
+  plan_output_schema:
+    plan_id: "UUID"
+    agent_id: "string"
+    task_understanding: "string: 2-3 sentence interpretation of the task"
+    confidence: "0.0-1.0"
+    steps:
+      - step_number: N
+        action: "string: what will be done"
+        tool_used: "string|null"
+        expected_output: "string: what this step produces"
+        token_estimate: N
+    expected_final_output:
+      format: "yaml|json|code|markdown"
+      key_fields: ["list of top-level output fields"]
+    risks:
+      - description: "string"
+        severity: "low|medium|high"
+        mitigation: "string"
+    ambiguities:
+      - description: "string"
+        blocking: "true|false"
+        assumption_if_not_blocking: "string"
+    token_estimates:
+      plan_tokens: N
+      execution_input_tokens: N
+      execution_output_tokens: N
+      total_estimated: N
+    human_review_required: "true|false"
+    human_review_reason: "string|null"
+    proceed: "true|false"  # false = do not execute (escalate first)
+
+validate_phase:
+  checks:
+    - name: "task_understood"
+      rule: "task_understanding is specific and matches input"
+      auto_fix: "Re-read input and rewrite understanding"
+    - name: "steps_complete"
+      rule: "steps cover all required output fields"
+      auto_fix: "Add missing steps"
+    - name: "steps_ordered"
+      rule: "steps are in logical dependency order"
+      auto_fix: "Reorder steps"
+    - name: "risks_assessed"
+      rule: "At least one risk identified (even if low)"
+      auto_fix: "Add 'no significant risks identified' entry"
+    - name: "token_budget_feasible"
+      rule: "total_estimated <= agent.context_budget.max_output_tokens"
+      auto_fix: "Split into smaller steps or request chunking"
+    - name: "no_blocking_ambiguities"
+      rule: "No blocking ambiguities remain unaddressed"
+      on_fail: "escalate_to_human before execution"
+    - name: "confidence_threshold"
+      rule: "confidence >= 0.65"
+      on_fail: "escalate_to_human or researcher"
+
+  auto_corrections:
+    max_attempts: 2
+    on_exceed: "escalate_to_human with plan draft"
+
+execute_phase:
+  prompt_prefix: |
+    EXECUTION PHASE — Your approved plan is attached below.
+    Execute EXACTLY according to the plan. Do not deviate.
+    If you discover something unexpected, STOP and report it — do not improvise.
+
+  deviation_handling:
+    on_minor_deviation: "log deviation, continue, note in output"
+    on_major_deviation: "STOP execution, report to orchestrator"
+    definition_of_major: "Any step that would change output schema or skip a planned step"
+
+plan_storage:
+  persist: true
+  location: "workflow_context.artifacts['{agent_id}.plan']"
+  include_in_audit: true
+
+skip_planning_for:
+  - "dry-run mode"
+  - "simple lookup tasks (< 3 steps)"
+  # Never skip for: deployment, security review, architecture decisions

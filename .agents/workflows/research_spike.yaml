@@ -1,0 +1,72 @@
+id: research_spike
+name: "Technology Research Spike Workflow"
+version: "1.0.0"
+description: |
+  Time-boxed investigation workflow to resolve technical unknowns
+  before committing to architectural decisions. Produces actionable
+  recommendations with evidence.
+
+trigger:
+  type: "manual | from_architect | from_ba"
+  input_schema:
+    spike_title: "string"
+    research_questions: ["list of specific questions"]
+    time_box: "2h | 4h | 1d"
+    requested_by: "architect | ba_token_optimizer | qa | human"
+    context: "string: why this research is needed"
+    decision_deadline: "ISO8601"
+
+stages:
+
+  stage_1_brief:
+    name: "Research Brief Preparation"
+    mode: "sequential"
+    timeout: "10 minutes"
+    agent: ba_token_optimizer
+    action: "Compress research questions to minimal precise form"
+    input: "raw research request"
+    output: "research_brief"
+    notes: "Even research questions get token-optimized"
+
+  stage_2_investigate:
+    name: "Investigation"
+    mode: "sequential"
+    depends_on: ["stage_1_brief"]
+    timeout: "time_box - 30 minutes"  # Reserve 30min for writeup
+    agent: researcher
+    skills:
+      - technology_evaluation
+      - structured_output
+    input: "research_brief"
+    output: "research_findings"
+    time_box_enforcement: "hard"  # Deliver partial findings at deadline
+
+  stage_3_recommendation:
+    name: "Recommendation Review"
+    mode: "sequential"
+    depends_on: ["stage_2_investigate"]
+    timeout: "20 minutes"
+    agent: architect
+    action: "Review findings and integrate into pending architecture decisions"
+    input: "research_findings + pending_architecture_questions"
+    output: "architecture_update | new_adr_draft"
+
+  stage_4_propagate:
+    name: "Propagate Findings"
+    mode: "parallel"
+    depends_on: ["stage_3_recommendation"]
+    notify:
+      - to: ba_token_optimizer
+        if: "research resolves open BA question"
+        payload: "update compressed_spec with findings"
+      - to: dev_executor
+        if: "research impacts implementation approach"
+        payload: "implementation_guidance_update"
+
+workflow_complete:
+  success: "Research questions answered, architecture decisions unblocked"
+  artifacts:
+    - research_brief
+    - research_findings
+    - technology_comparison_matrix
+    - architecture_update_or_adr

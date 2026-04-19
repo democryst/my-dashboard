@@ -1,0 +1,272 @@
+id: feature_development
+name: "Full Feature Development Workflow"
+version: "1.0.0"
+description: |
+  End-to-end workflow for delivering a new feature through all 9 agents.
+  Implements parallel execution where safe, strict gates before critical stages.
+
+trigger:
+  type: "manual | webhook | ticket"
+  input_schema:
+    raw_feature_request: "string"
+    priority: "P0|P1|P2"
+    deadline: "ISO8601 | null"
+    requesting_team: "string"
+
+stages:
+
+  # ─────────────────────────────────────────────────────────────
+  # STAGE 1: INGESTION & RESEARCH (can be parallel)
+  # ─────────────────────────────────────────────────────────────
+  stage_1_ingestion:
+    name: "Requirement Analysis"
+    mode: "sequential"
+    agents:
+      - agent: ba_token_optimizer
+        skills:
+          - plan_before_execute      # ← PLAN first
+          - requirement_extraction
+          - structured_output
+          - context_compression
+        input: "raw_feature_request"
+        output: "compressed_spec"
+        timeout: "20 minutes"       # +5min for planning phase
+
+    gate:
+      name: "spec_quality_gate"
+      conditions:
+        - "all P0 requirements have acceptance criteria"
+        - "no vague/unmeasurable terms"
+        - "compression_ratio <= 0.50"
+        - "no blocking open questions"
+        - "ba_token_optimizer.plan.confidence >= 0.65"  # plan confidence gate
+      on_fail: "route open questions to researcher OR escalate to human"
+
+  # ─────────────────────────────────────────────────────────────
+  # STAGE 1b: PARALLEL — Research (if BA flagged unknowns)
+  # ─────────────────────────────────────────────────────────────
+  stage_1b_research:
+    name: "Technology Research (Conditional)"
+    mode: "conditional_parallel"
+    trigger: "ba_token_optimizer.open_questions.count > 0"
+    agents:
+      - agent: researcher
+        skills:
+          - plan_before_execute      # ← PLAN first
+          - technology_evaluation
+          - structured_output
+        input: "ba_open_questions"
+        output: "research_findings"
+        timeout: "2 hours 15 minutes"
+    on_complete: "merge research_findings into compressed_spec"
+
+  # ─────────────────────────────────────────────────────────────
+  # STAGE 2: ARCHITECTURE DESIGN
+  # ─────────────────────────────────────────────────────────────
+  stage_2_architecture:
+    name: "Architecture Design"
+    mode: "sequential"
+    depends_on: ["stage_1_ingestion", "stage_1b_research"]
+    agents:
+      - agent: architect
+        skills:
+          - plan_before_execute      # ← PLAN first (human review if HIGH risk)
+          - adr_writing
+          - structured_output
+          - context_compression
+        input: "compressed_spec + research_findings"
+        output: "architecture_doc"
+        timeout: "40 minutes"
+
+    gate:
+      name: "architecture_quality_gate"
+      conditions:
+        - "all P0 requirements mapped to components"
+        - "no circular dependencies in component graph"
+        - "all user-facing components have SLA targets"
+        - "all technology choices have ADRs"
+        - "failure scenarios documented"
+        - "architect.plan.confidence >= 0.70"
+      on_fail: "return to architect with findings OR escalate to human"
+      human_review_required: "architecture with RISK level HIGH"
+
+  # ─────────────────────────────────────────────────────────────
+  # STAGE 3: INFRASTRUCTURE SETUP
+  # ─────────────────────────────────────────────────────────────
+  stage_3_infrastructure:
+    name: "Infrastructure Provisioning"
+    mode: "sequential"
+    depends_on: ["stage_2_architecture"]
+    agents:
+      - agent: platform_sre
+        skills:
+          - plan_before_execute      # ← PLAN first
+          - slo_definition
+          - structured_output
+          - context_compression
+        input: "architecture_doc"
+        output: "infra_config + slo_targets"
+        timeout: "55 minutes"
+      - agent: security
+        skills:
+          - plan_before_execute      # ← PLAN first (NEVER skipped for security)
+          - threat_modeling
+          - structured_output
+        input: "architecture_doc + infra_config"
+        output: "infra_security_findings"
+        timeout: "30 minutes"
+        mode: "parallel_with:platform_sre"
+
+    gate:
+      name: "infra_ready_gate"
+      conditions:
+        - "all services have SLOs defined"
+        - "all health checks configured"
+        - "all 4 Golden Signals alerted"
+        - "no hardcoded secrets in IaC"
+        - "infra security: no CRITICAL findings"
+        - "security.plan.confidence >= 0.80"
+      on_fail: "return to platform_sre/security with findings"
+
+  # ─────────────────────────────────────────────────────────────
+  # STAGE 4: IMPLEMENTATION
+  # ─────────────────────────────────────────────────────────────
+  stage_4_implementation:
+    name: "Code Implementation"
+    mode: "sequential"
+    depends_on: ["stage_3_infrastructure"]
+    agents:
+      - agent: dev_executor
+        skills:
+          - plan_before_execute      # ← PLAN per component before writing code
+          - tdd_implementation
+          - structured_output
+          - context_compression
+        input: "architecture_doc + infra_config + slo_targets"
+        output: "code_diff + test_results"
+        timeout: "2 hours 15 minutes"
+
+    gate:
+      name: "implementation_ready_gate"
+      conditions:
+        - "all unit tests pass"
+        - "test coverage >= 80%"
+        - "linter clean"
+        - "no hardcoded secrets"
+        - "API contract satisfied"
+        - "no functions with complexity > 10"
+        - "all handlers have tracing spans"
+        - "dev_executor.plan.deviations.count == 0"  # no unplanned deviations
+      on_fail: "retry (max 3) then escalate to human"
+
+  # ─────────────────────────────────────────────────────────────
+  # STAGE 5: PARALLEL REVIEW GATE
+  # ─────────────────────────────────────────────────────────────
+  stage_5_review:
+    name: "Parallel Review (Code + QA + Security)"
+    mode: "parallel"
+    depends_on: ["stage_4_implementation"]
+    agents:
+      - agent: dev_reviewer
+        skills:
+          - plan_before_execute      # ← PLAN which files to review + checklist
+          - structured_output
+        input: "code_diff + architecture_doc + api_contracts"
+        output: "review_result"
+        timeout: "25 minutes"
+
+      - agent: qa
+        skills:
+          - plan_before_execute      # ← PLAN AC-to-test mapping first
+          - performance_testing
+          - structured_output
+        input: "code_diff + compressed_spec + slo_targets"
+        output: "qa_report"
+        timeout: "50 minutes"
+
+      - agent: security
+        skills:
+          - plan_before_execute      # ← PLAN attack surface scope before scanning
+          - threat_modeling
+          - structured_output
+        input: "code_diff + infra_config"
+        output: "security_report"
+        timeout: "30 minutes"
+
+    gate:
+      name: "triple_approval_gate"
+      type: "AND"  # ALL three must pass
+      conditions:
+        - "dev_reviewer.decision in [APPROVED, APPROVED_WITH_SUGGESTIONS]"
+        - "dev_reviewer.findings_critical == 0"
+        - "qa.decision in [PASSED, PASSED_WITH_RISKS]"
+        - "qa.bugs_p0_open == 0"
+        - "security.decision in [CLEARED, CONDITIONAL_CLEAR]"
+        - "security.vulnerabilities_critical == 0"
+        - "security.secret_findings == 0"
+      on_partial_fail: "route failed stream back to dev_executor"
+      on_full_fail: "block deployment, escalate to human"
+
+  # ─────────────────────────────────────────────────────────────
+  # STAGE 6: DEPLOYMENT
+  # ─────────────────────────────────────────────────────────────
+  stage_6_deployment:
+    name: "Progressive Deployment"
+    mode: "sequential"
+    depends_on: ["stage_5_review"]
+    requires_gate: "triple_approval_gate == OPEN"
+    agents:
+      - agent: devops
+        skills:
+          - progressive_delivery
+          - structured_output
+          - audit_trail
+        input: "code_diff + approval_signals + infra_config"
+        output: "deployment_record"
+        timeout: "90 minutes"
+
+    gate:
+      name: "deployment_success_gate"
+      conditions:
+        - "staging_smoke_tests passed"
+        - "canary_error_rate < 0.1% for 30 minutes"
+        - "canary_p99_latency < SLO target"
+        - "full rollout completed"
+      on_fail: "auto-rollback + incident report + escalate to human"
+      retry_policy: "no retries — rollback on failure"
+
+  # ─────────────────────────────────────────────────────────────
+  # STAGE 7: POST-DEPLOYMENT VALIDATION
+  # ─────────────────────────────────────────────────────────────
+  stage_7_validation:
+    name: "Post-Deployment Validation"
+    mode: "parallel"
+    depends_on: ["stage_6_deployment"]
+    agents:
+      - agent: qa
+        input: "production_endpoint"
+        action: "Run smoke + sanity tests on production"
+        timeout: "15 minutes"
+      - agent: platform_sre
+        input: "deployment_record + slo_targets"
+        action: "Validate SLO metrics for 15 minutes post-deploy"
+        timeout: "20 minutes"
+
+workflow_complete:
+  success: "Feature live in production with all SLOs green"
+  artifacts:
+    - compressed_spec
+    - architecture_doc
+    - adrs
+    - infra_config
+    - slo_definitions
+    - code_diff
+    - review_result
+    - qa_report
+    - security_report
+    - deployment_record
+
+error_handling:
+  global_timeout: "8 hours"
+  on_timeout: "pause workflow + escalate to human"
+  on_unhandled_exception: "rollback to last known good state + page SRE"

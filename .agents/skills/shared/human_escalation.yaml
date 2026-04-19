@@ -1,0 +1,63 @@
+id: human_escalation
+name: "Human Escalation Protocol"
+version: "1.0.0"
+category: "shared"
+applicable_to: "all_agents"
+
+description: |
+  Standard protocol for escalating decisions, blockers, or ambiguities
+  to human reviewers. Ensures humans are engaged at the right moments
+  with the right context and clear decision requirements.
+
+escalation_triggers:
+  automatic:
+    - "confidence < 0.7 on any critical decision"
+    - "blocking open questions remain unresolved"
+    - "CRITICAL security vulnerability found"
+    - "cost_impact > defined budget threshold"
+    - "architectural decision with no clear winner after research"
+    - "production incident (P0) detected"
+    - "compliance flag raised"
+    - "conflicting requirements between P0 items"
+
+  agent_initiated:
+    - "agent explicitly calls escalate_to_human tool"
+    - "quality gate fails after max_retries exceeded"
+
+escalation_request_schema:
+  escalation_id: "UUID"
+  workflow_id: "UUID"
+  agent_id: "string requesting escalation"
+  urgency: "IMMEDIATE|WITHIN_1H|WITHIN_8H|ASYNC"
+  type: "decision_required|blocker|risk_acknowledgment|budget_approval|compliance"
+  title: "string: clear 10-word summary"
+  context: "string: concise background (≤500 tokens)"
+  decision_required: "string: exactly what the human needs to decide"
+  options:
+    - label: "Option A"
+      description: "..."
+      implications: "..."
+      recommended: "true|false"
+  deadline: "ISO8601 or null"
+  blocking_agents: ["list of agents blocked on this escalation"]
+  artifacts:
+    - type: "spec|adr|report|log"
+      path: "..."
+
+notification_channels:
+  IMMEDIATE: ["pagerduty", "slack_critical"]
+  WITHIN_1H: ["slack_channel", "email"]
+  WITHIN_8H: ["email", "jira_ticket"]
+  ASYNC: ["jira_ticket"]
+
+human_response_schema:
+  decision: "string: human's decision"
+  rationale: "string: reason"
+  decided_by: "string: human identifier"
+  decided_at: "ISO8601"
+  follow_up_notes: "string"
+
+output:
+  escalation_id: "UUID"
+  status: "sent|acknowledged|resolved"
+  resolution: "human_response_schema or null"

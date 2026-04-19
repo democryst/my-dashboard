@@ -1,0 +1,57 @@
+id: slo_definition
+name: "SLO / SLI / Error Budget Definition"
+version: "1.0.0"
+category: "platform_sre_specific"
+agent: "platform_sre"
+
+description: |
+  Define measurable Service Level Objectives, Indicators, and Error Budgets
+  for every user-facing service based on architecture SLA targets.
+
+golden_signals:
+  latency:
+    sli: "Proportion of requests faster than threshold"
+    typical_thresholds:
+      p50: "target * 0.5"
+      p95: "target * 1.5"
+      p99: "target * 2.0"
+  traffic:
+    sli: "Requests per second (requests coming in)"
+    use: "Capacity planning signal"
+  errors:
+    sli: "Rate of requests returning 5xx / total requests"
+    typical_target: "< 0.1%"
+  saturation:
+    sli: "CPU/Memory/Queue utilization %"
+    typical_alert: "> 80% sustained for 5 minutes"
+
+error_budget_calculation: |
+  # Error Budget Formula
+  monthly_minutes = 43800
+  availability_target = 0.999  # 99.9% = "three nines"
+  error_budget_minutes = monthly_minutes * (1 - availability_target)
+  # = 43.8 minutes/month
+
+  burn_rate_alert:
+    fast: { window: "1h", factor: 14.4, severity: "page" }     # 2% budget in 1h
+    slow: { window: "6h", factor: 6.0, severity: "ticket" }    # 5% budget in 6h
+
+steps:
+  1_read_sla_targets: "Extract availability, latency, throughput from architecture doc"
+  2_define_slis: "Define measurable indicators for each golden signal"
+  3_set_slo_thresholds: "Convert SLA targets to SLO thresholds with headroom"
+  4_calculate_error_budget: "Compute monthly error budget minutes"
+  5_define_burn_rate_alerts: "Set fast/slow burn rate Prometheus alert rules"
+  6_create_slo_dashboard: "Define Grafana dashboard panels for SLO tracking"
+  7_write_toil_runbook: "Write procedures for when SLO is breached"
+
+output_schema:
+  slos:
+    - service: "..."
+      availability_slo: "99.X%"
+      latency_p99_slo: "XXXms"
+      error_rate_slo: "X.X%"
+      error_budget_minutes_monthly: N
+  prometheus_rules: "YAML rule groups"
+  grafana_dashboard_json: "JSON"
+  runbooks: ["path/to/runbook.md"]

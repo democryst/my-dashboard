@@ -1,0 +1,77 @@
+id: technology_evaluation
+name: "Technology Evaluation Framework"
+version: "1.0.0"
+category: "researcher_specific"
+agent: "researcher"
+
+description: |
+  Structured framework for evaluating and comparing technology options.
+  Produces evidence-based recommendations that Architect can immediately act on.
+
+evaluation_dimensions:
+  performance:
+    weight: 0.20
+    metrics: ["throughput", "latency", "memory footprint", "CPU efficiency"]
+    method: "Benchmark or published independent benchmark"
+  ecosystem_maturity:
+    weight: 0.20
+    metrics: ["age", "version_stability", "github_stars", "npm/crate/pypi downloads"]
+    method: "Public repository analysis"
+  community_health:
+    weight: 0.15
+    metrics: ["recent_commits (90d)", "open_issues", "response_time", "contributors"]
+    method: "GitHub API analysis"
+  security_posture:
+    weight: 0.20
+    metrics: ["cve_count_5yr", "recent_cve_severity", "security_policy_present"]
+    method: "NVD + OSV database search"
+  operational_cost:
+    weight: 0.10
+    metrics: ["licensing", "infra_cost", "ops_complexity"]
+    method: "Cost calculator + vendor pricing"
+  team_fit:
+    weight: 0.15
+    metrics: ["language_match", "complexity", "learning_curve"]
+    method: "Subjective + community feedback"
+
+scoring_method: |
+  For each dimension, score each option 1-5:
+    5 = Excellent (best in class)
+    4 = Good (above average)
+    3 = Acceptable (meets minimum bar)
+    2 = Poor (has significant drawbacks)
+    1 = Failing (disqualifying issue)
+
+  Weighted total = sum(dim_weight * score) for each option
+  Recommendation = highest weighted total (unless disqualifying issue found)
+
+decision_matrix_example: |
+  | Dimension          | Weight | Option A | Option B | Option C |
+  |--------------------|--------|----------|----------|----------|
+  | Performance        | 20%    |    4     |    5     |    3     |
+  | Ecosystem Maturity | 20%    |    5     |    3     |    4     |
+  | Community Health   | 15%    |    4     |    4     |    2     |
+  | Security Posture   | 20%    |    5     |    4     |    3     |
+  | Operational Cost   | 10%    |    3     |    4     |    5     |
+  | Team Fit           | 15%    |    4     |    3     |    3     |
+  | **WEIGHTED TOTAL** |        |  **4.2** |  **3.9** |  **3.2** |
+
+steps:
+  1_define_options: "List all viable options from initial research"
+  2_quick_filter: "Eliminate options with disqualifying issues (CVSS > 9, abandoned)"
+  3_score_dimensions: "Score each remaining option on each dimension with evidence"
+  4_build_matrix: "Assemble decision matrix"
+  5_calculate_totals: "Compute weighted totals"
+  6_validate_recommendation: "Sanity-check: does winner make intuitive sense?"
+  7_document_runner_up: "Note 2nd place for Architect's ADR alternatives section"
+
+output_schema:
+  winner: "string"
+  runner_up: "string"
+  disqualified: ["options removed with reasons"]
+  decision_matrix: "formatted table"
+  weighted_scores:
+    - option: "..."
+      total: "X.X"
+  recommendation: "string: < 200 words justification"
+  confidence: "low|medium|high"

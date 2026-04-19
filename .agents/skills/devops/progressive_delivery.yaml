@@ -1,0 +1,93 @@
+id: progressive_delivery
+name: "Progressive Delivery (Canary + Blue-Green)"
+version: "1.0.0"
+category: "devops_specific"
+agent: "devops"
+
+description: |
+  Implements progressive delivery patterns using Flagger + Argo Rollouts
+  for safe, automated production deployments with automatic rollback.
+
+strategies:
+  canary:
+    description: "Gradual traffic shift from old to new version"
+    use_case: "Standard feature deployments"
+    traffic_progression:
+      - weight: 10
+        duration: "10 minutes"
+        analysis_metrics: ["error_rate < 0.1%", "p99_latency < slo"]
+      - weight: 25
+        duration: "10 minutes"
+        analysis_metrics: ["same"]
+      - weight: 50
+        duration: "10 minutes"
+        analysis_metrics: ["same"]
+      - weight: 100
+        duration: "complete"
+    rollback:
+      trigger: "any metric threshold breached"
+      auto: true
+      notify: "pagerduty + slack"
+
+  blue_green:
+    description: "Instant full cutover with instant rollback"
+    use_case: "Database migrations or breaking API changes"
+    steps:
+      - "Deploy new version alongside old (green + blue)"
+      - "Run smoke tests on green"
+      - "Switch load balancer to green"
+      - "Keep blue running for 30 minutes"
+      - "Decommission blue after validation"
+    rollback:
+      trigger: "error_rate > 1% within 5 minutes of cutover"
+      auto: true
+      time_to_rollback: "< 60 seconds"
+
+flagger_analysis_template: |
+  apiVersion: flagger.app/v1beta1
+  kind: Canary
+  metadata:
+    name: {service_name}
+  spec:
+    analysis:
+      interval: 1m
+      threshold: 5
+      maxWeight: 50
+      stepWeight: 10
+      metrics:
+        - name: request-success-rate
+          thresholdRange:
+            min: 99
+          interval: 1m
+        - name: request-duration
+          thresholdRange:
+            max: {slo_p99_ms}
+          interval: 1m
+      webhooks:
+        - name: load-test
+          url: http://flagger-loadtester/
+          timeout: 5s
+
+steps:
+  1_verify_approvals: "Check Dev Review + QA + Security gate is OPEN"
+  2_tag_release: "Create semantic version tag from conventional commits"
+  3_build_image: "Trigger CI build + push to registry"
+  4_deploy_staging: "Apply to staging via ArgoCD sync"
+  5_validate_staging: "Run smoke tests on staging"
+  6_create_canary: "Apply Flagger Canary resource to production cluster"
+  7_monitor_canary: "Watch Flagger analysis for 30 minutes"
+  8_promote_or_rollback: "Auto-promote on success, auto-rollback on failure"
+  9_record_deployment: "Create ITSM change record with outcome"
+
+output_schema:
+  deployed: "true|false"
+  strategy_used: "canary|blue_green"
+  final_version: "semantic version"
+  staging_validation: "PASS|FAIL"
+  canary_analysis_duration: "Xm"
+  rollback_triggered: "true|false"
+  rollback_reason: "string|null"
+  metrics_at_completion:
+    error_rate: "X.X%"
+    p99_latency_ms: N
+    rps: N

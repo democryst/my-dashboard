@@ -1,0 +1,70 @@
+id: adr_writing
+name: "Architecture Decision Record (ADR) Writing"
+version: "1.0.0"
+category: "architect_specific"
+agent: "architect"
+
+description: |
+  Generate MADR-format (Markdown Architectural Decision Records) for every
+  significant architectural decision. ADRs are immutable once accepted.
+
+input_schema:
+  decision_context: "Problem being solved"
+  options_considered: "List of options with pros/cons"
+  constraints: "Technical, business, regulatory constraints"
+  recommendation: "Preferred option with rationale"
+
+madr_template: |
+  # ADR-{id}: {title}
+
+  **Status**: {proposed|accepted|deprecated|superseded}
+  **Date**: {date}
+  **Deciders**: {agents or humans involved}
+
+  ## Context
+  {What is the problem and why does it need a decision?}
+
+  ## Decision
+  {What was decided?}
+
+  ## Options Considered
+
+  ### Option 1: {name}
+  - **Pros**: ...
+  - **Cons**: ...
+
+  ### Option 2: {name} (Rejected)
+  - **Pros**: ...
+  - **Cons**: ...
+  - **Rejection reason**: ...
+
+  ## Consequences
+  ### Positive
+  - ...
+  ### Negative
+  - ...
+  ### Risks
+  - ...
+
+  ## Constraints Satisfied
+  - {REQ-XXX}: ...
+
+steps:
+  1_gather_context: "Collect problem statement and decision drivers"
+  2_evaluate_options: "Score each option against decision criteria"
+  3_select_recommendation: "Choose option with best score vs. constraints"
+  4_document_rejected: "Record WHY alternatives were rejected"
+  5_assess_consequences: "List positive, negative, and risk consequences"
+  6_link_requirements: "Map decision to requirements it satisfies"
+
+quality_checks:
+  - "Has ≥1 rejected alternative documented"
+  - "Has explicit rationale for selection"
+  - "Has risk assessment"
+  - "Maps to ≥1 requirement"
+
+output_schema:
+  adr: "Complete MADR document"
+  adr_id: "ADR-XXX"
+  requirements_satisfied: ["REQ-XXX"]
+  follow_up_adrs_needed: ["list of decisions that need their own ADRs"]

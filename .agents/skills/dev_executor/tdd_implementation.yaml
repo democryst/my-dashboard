@@ -1,0 +1,73 @@
+id: tdd_implementation
+name: "Test-Driven Development Implementation"
+version: "1.0.0"
+category: "dev_executor_specific"
+agent: "dev_executor"
+
+description: |
+  Implements features using Test-Driven Development: write failing test first,
+  implement minimum code to pass, then refactor. Ensures every function
+  is testable by design.
+
+tdd_cycle:
+  red:
+    action: "Write failing unit test from acceptance criteria"
+    rule: "Test must fail for the right reason"
+    output: "failing_test.go/py/ts/rs"
+  green:
+    action: "Write minimum code to pass the test"
+    rule: "No gold-plating, just make it pass"
+    output: "implementation.go/py/ts/rs"
+  refactor:
+    action: "Improve code quality without breaking tests"
+    checks:
+      - "Complexity ≤ 10"
+      - "No duplication"
+      - "Clear names"
+      - "Single responsibility"
+    output: "refactored_implementation + passing tests"
+
+test_types:
+  unit:
+    scope: "Single function/method"
+    dependencies: "All mocked"
+    naming: "{function}_should_{behavior}_when_{condition}"
+    assertion_style: "AAA: Arrange / Act / Assert"
+  integration:
+    scope: "Multiple components together"
+    dependencies: "Real implementations or test containers"
+    focus: "Interface contracts, data flows"
+  contract:
+    scope: "API consumer-provider contracts"
+    tool: "Pact"
+    focus: "Breaking change detection"
+
+language_specific_patterns:
+  go:
+    test_file: "{file}_test.go"
+    framework: "testing.T + testify"
+    mocking: "gomock or mockery"
+  rust:
+    test_location: "inline #[cfg(test)] mod tests"
+    framework: "built-in #[test]"
+    mocking: "mockall"
+  python:
+    test_file: "test_{file}.py"
+    framework: "pytest"
+    mocking: "unittest.mock"
+  typescript:
+    test_file: "{file}.test.ts"
+    framework: "vitest or jest"
+    mocking: "vi.mock or jest.mock"
+
+quality_checks:
+  - "Every public function has ≥1 unit test"
+  - "Every error branch has a test"
+  - "Happy path + ≥2 edge cases per function"
+  - "No test with multiple unrelated assertions"
+
+output_schema:
+  test_files: ["paths"]
+  impl_files: ["paths"]
+  coverage_report: "..."
+  tdd_cycles_completed: N

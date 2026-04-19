@@ -1,0 +1,36 @@
+id: structured_output
+name: "Structured Output Enforcement"
+version: "1.0.0"
+category: "shared"
+applicable_to: "all_agents"
+
+description: |
+  Ensures all agent outputs conform to their defined output_schema.
+  Validates structure, required fields, and data types before handoff.
+
+steps:
+  1_validate_schema:
+    action: "Serialize output to YAML/JSON"
+    check: "All required fields present"
+    on_fail: "Fill missing fields or raise schema_error"
+
+  2_type_check:
+    action: "Validate field types against schema"
+    check: "No type mismatches"
+    on_fail: "Cast or raise type_error"
+
+  3_completeness_check:
+    action: "Verify no placeholder values (e.g., '...', 'TBD', 'TODO')"
+    check: "Zero placeholders in output"
+    on_fail: "Complete or remove placeholder"
+
+  4_token_count:
+    action: "Count output tokens"
+    check: "output_tokens <= agent.context_budget.max_output_tokens"
+    on_fail: "Summarize or truncate least-important sections"
+
+output:
+  validated_payload: "Structured YAML object ready for handoff"
+  token_count: "int"
+  validation_status: "passed|failed"
+  errors: ["list of validation errors"]

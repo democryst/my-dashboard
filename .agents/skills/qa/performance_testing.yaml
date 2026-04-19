@@ -1,0 +1,85 @@
+id: performance_testing
+name: "Performance & Load Testing"
+version: "1.0.0"
+category: "qa_specific"
+agent: "qa"
+
+description: |
+  Design and execute performance tests that validate every user-facing API
+  meets its SLO targets under realistic and peak load conditions.
+
+test_pyramid:
+  load_test:
+    description: "Validates normal expected load"
+    users: "100% of expected concurrent users"
+    duration: "10 minutes"
+    success_criteria: "p99 < SLO target, error_rate < 0.1%"
+  stress_test:
+    description: "Validates behavior at 150% expected load"
+    users: "150% of expected concurrent users"
+    duration: "5 minutes"
+    success_criteria: "system degrades gracefully, no data loss"
+  spike_test:
+    description: "Sudden traffic surge (marketing event simulation)"
+    pattern: "0 → 500% in 30 seconds → back to 0"
+    success_criteria: "system recovers within 60 seconds"
+  soak_test:
+    description: "Sustained load to detect memory leaks"
+    users: "80% of expected concurrent users"
+    duration: "2 hours"
+    success_criteria: "no memory growth trend, no latency degradation"
+
+k6_script_template: |
+  import http from 'k6/http';
+  import { check, sleep } from 'k6';
+  import { Rate, Trend } from 'k6/metrics';
+
+  const errorRate = new Rate('error_rate');
+  const latency = new Trend('latency');
+
+  export const options = {
+    stages: [
+      { duration: '2m', target: TARGET_VUS },
+      { duration: '5m', target: TARGET_VUS },
+      { duration: '2m', target: 0 },
+    ],
+    thresholds: {
+      'http_req_duration{percentile:99}': ['p(99)<SLO_P99_MS'],
+      'error_rate': ['rate<0.001'],
+    },
+  };
+
+  export default function () {
+    const res = http.get(TARGET_URL);
+    check(res, { 'status is 200': (r) => r.status === 200 });
+    errorRate.add(res.status !== 200);
+    latency.add(res.timings.duration);
+    sleep(THINK_TIME_S);
+  }
+
+steps:
+  1_read_slos: "Extract p99 latency and error rate SLOs from platform_sre output"
+  2_design_scenarios: "Map each P0 API endpoint to a test scenario"
+  3_estimate_load: "Calculate VUs from expected concurrent users"
+  4_generate_scripts: "Generate k6 scripts from template"
+  5_run_smoke: "10 VU, 30 seconds — validate scripts work"
+  6_run_load: "Full load test"
+  7_run_stress: "Stress test if load test passes"
+  8_analyze_results: "Compare p50/p95/p99 to SLO targets"
+  9_report: "Generate structured performance report"
+
+output_schema:
+  performance_report_id: "UUID"
+  test_scenarios: ["list of scenarios run"]
+  results:
+    - endpoint: "..."
+      test_type: "load|stress|spike|soak"
+      p50_ms: N
+      p95_ms: N
+      p99_ms: N
+      rps: N
+      error_rate: "X.X%"
+      slo_p99_ms: N
+      slo_status: "PASS|FAIL"
+  bottlenecks: ["list of identified bottlenecks with recommendations"]
+  recommendation: "PASS|FAIL with summary"

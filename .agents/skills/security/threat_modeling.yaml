@@ -1,0 +1,70 @@
+id: threat_modeling
+name: "STRIDE Threat Modeling"
+version: "1.0.0"
+category: "security_specific"
+agent: "security"
+
+description: |
+  Apply STRIDE threat modeling methodology to identify security threats
+  in new or modified components. Every new component gets a threat model
+  before code review approval.
+
+stride_categories:
+  Spoofing:
+    question: "Can an attacker impersonate a user, service, or component?"
+    common_attacks: ["stolen credentials", "session hijacking", "JWT forgery"]
+    controls: ["MFA", "mTLS", "short-lived tokens", "token rotation"]
+  Tampering:
+    question: "Can an attacker modify data in transit or at rest?"
+    common_attacks: ["MITM", "SQL injection", "parameter tampering"]
+    controls: ["TLS 1.3", "HMAC signatures", "parameterized queries", "input validation"]
+  Repudiation:
+    question: "Can an attacker deny performing an action?"
+    common_attacks: ["log deletion", "timestamp manipulation"]
+    controls: ["append-only audit logs", "signed audit events", "centralized logging"]
+  Information_Disclosure:
+    question: "Can an attacker access data they shouldn't?"
+    common_attacks: ["verbose error messages", "path traversal", "IDOR", "XXE"]
+    controls: ["generic error messages", "RBAC", "encryption at rest", "data masking"]
+  Denial_of_Service:
+    question: "Can an attacker make the system unavailable?"
+    common_attacks: ["resource exhaustion", "large payload attacks", "amplification"]
+    controls: ["rate limiting", "request size limits", "circuit breakers", "CDN/WAF"]
+  Elevation_of_Privilege:
+    question: "Can an attacker gain higher permissions than authorized?"
+    common_attacks: ["privilege escalation", "JWT role manipulation", "SSRF"]
+    controls: ["principle of least privilege", "JWT claim validation", "RBAC enforcement"]
+
+steps:
+  1_scope_definition:
+    action: "Define trust boundaries and data flows from architecture"
+    output: "DFD (Data Flow Diagram) in Mermaid"
+  2_asset_identification:
+    action: "List sensitive assets: PII, secrets, financial data, auth tokens"
+    output: "Asset inventory with sensitivity classification"
+  3_threat_enumeration:
+    action: "Apply all 6 STRIDE categories to each data flow crossing trust boundaries"
+    output: "Threat list with severity"
+  4_control_mapping:
+    action: "Map existing controls to each threat"
+    output: "Gap analysis: mitigated vs. unmitigated threats"
+  5_risk_scoring:
+    action: "Score each threat: DREAD or CVSS"
+    output: "Prioritized threat list"
+  6_remediation_plan:
+    action: "Recommend controls for unmitigated threats"
+    output: "Remediation items for Dev Executor"
+
+output_schema:
+  threat_model_id: "UUID"
+  dfd_mermaid: "string"
+  total_threats: N
+  threats_mitigated: N
+  threats_unmitigated: N
+  threats:
+    - id: "STRIDE-XXX"
+      category: "S|T|R|I|D|E"
+      description: "..."
+      severity: "CRITICAL|HIGH|MEDIUM|LOW"
+      mitigated: "true|false"
+      recommended_control: "..."

@@ -1,0 +1,54 @@
+id: context_compression
+name: "Context Compression"
+version: "1.0.0"
+category: "shared"
+applicable_to: "all_agents"
+
+description: |
+  Progressively compresses conversation and task context to stay within
+  the agent's token budget. Preserves semantic meaning and critical
+  decision artifacts while discarding redundant or verbose content.
+
+compression_strategies:
+  progressive_summarization:
+    description: "Summarize older messages into key decisions only"
+    trigger: "context_tokens > 0.8 * max_input_tokens"
+    steps:
+      - "Extract key decisions and facts from messages > 5 turns old"
+      - "Replace original messages with bullet-point summaries"
+      - "Preserve all output schemas and gate results verbatim"
+
+  selective_retention:
+    description: "Keep only directly relevant context for current task"
+    trigger: "context_tokens > max_input_tokens"
+    steps:
+      - "Score each context item by relevance to current action"
+      - "Retain top-K items by relevance score"
+      - "Always retain: current spec, approval signals, output schemas"
+
+  task_scoped:
+    description: "Load only files/context for the current component"
+    trigger: "always"
+    steps:
+      - "Identify current component being worked on"
+      - "Load only files in that component's scope"
+      - "Load shared interfaces/contracts as references only"
+
+rules:
+  always_preserve:
+    - "Current task spec (latest version)"
+    - "Approved architectural decisions"
+    - "Open blocking questions"
+    - "Quality gate results"
+    - "Output schema definition"
+  always_discard:
+    - "Intermediate reasoning steps from > 3 turns ago"
+    - "Verbose raw input that has been processed"
+    - "Duplicate information"
+
+output:
+  compressed_context: "Compressed context string"
+  original_token_count: "int"
+  compressed_token_count: "int"
+  compression_ratio: "float"
+  items_dropped: ["list of dropped items with reasons"]

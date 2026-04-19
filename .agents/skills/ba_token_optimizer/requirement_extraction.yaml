@@ -1,0 +1,56 @@
+id: requirement_extraction
+name: "Requirement Extraction & Classification"
+version: "1.0.0"
+category: "ba_specific"
+agent: "ba_token_optimizer"
+
+description: |
+  Systematically extract, classify, and structure requirements from any
+  form of input: free text, user stories, meeting notes, or Jira tickets.
+
+input_schema:
+  raw_input: "string: any format user requirement"
+  input_type: "free_text|user_story|meeting_notes|ticket"
+  priority_context: "business_goal or deadline context"
+
+steps:
+  1_parse_input:
+    action: "Read raw input and identify distinct requirement statements"
+    technique: "Split on action verbs and functional boundaries"
+    output: "List of candidate requirement statements"
+
+  2_classify_type:
+    action: "Tag each requirement"
+    types:
+      functional: "system must DO something"
+      non_functional: "system must BE something (fast, secure, scalable)"
+      constraint: "system must NOT or CANNOT do"
+      assumption: "something assumed true without explicit statement"
+
+  3_assign_priority:
+    action: "Score each requirement"
+    criteria:
+      P0: "System cannot launch without this"
+      P1: "Critical for core value proposition"
+      P2: "Enhances UX but not blocking"
+    method: "MoSCoW analysis"
+
+  4_detect_ambiguity:
+    action: "Flag vague terms"
+    vague_terms: ["fast", "good", "easy", "nice", "better", "soon", "large scale", "real-time"]
+    output: "Ambiguity report with clarifying questions"
+
+  5_generate_acceptance_criteria:
+    action: "Write Given/When/Then ACs for all P0/P1 requirements"
+    format: "BDD Gherkin"
+
+  6_compress:
+    action: "Rewrite requirements in minimal tokens"
+    technique: "Remove filler, standardize verbs, use abbreviations"
+    target_ratio: 0.40
+
+output_schema:
+  requirements: "classified + prioritized list"
+  ambiguities: "list of open questions"
+  acceptance_criteria: "BDD scenarios"
+  compression_stats: "before/after token counts"

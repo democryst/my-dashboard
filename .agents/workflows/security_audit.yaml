@@ -1,0 +1,114 @@
+id: security_audit
+name: "Security Audit Workflow"
+version: "1.0.0"
+description: |
+  Scheduled or on-demand deep security audit of the entire platform.
+  Runs independently of feature development cycle. Results feed
+  into backlog as security improvement tickets.
+
+trigger:
+  type: "scheduled | manual"
+  schedule: "0 2 * * 1"  # Every Monday at 02:00 (weekly)
+  input_schema:
+    scope: "full | service_name | infra_only | code_only"
+    compliance_frameworks: ["SOC2 | PCI-DSS | GDPR | HIPAA"]
+    depth: "standard | deep"
+
+stages:
+
+  stage_1_scope:
+    name: "Audit Scope Definition"
+    timeout: "10 minutes"
+    agent: ba_token_optimizer
+    action: "Define precise audit scope and compliance requirements"
+    output: "audit_scope_spec"
+
+  stage_2_threat_model_refresh:
+    name: "STRIDE Threat Model Refresh"
+    timeout: "30 minutes"
+    agent: security
+    skills:
+      - threat_modeling
+    input: "current_architecture_doc + audit_scope_spec"
+    output: "refreshed_threat_model"
+    action: "Re-run STRIDE on all components updated since last audit"
+
+  stage_3_code_scan:
+    name: "Deep Code Security Scan"
+    mode: "parallel"
+    timeout: "45 minutes"
+    agents:
+      - agent: security
+        action: "SAST on all code in scope"
+        tools: ["semgrep", "gosec", "bandit", "codeql"]
+        output: "code_vulnerabilities"
+      - agent: security
+        action: "Dependency CVE scan"
+        tools: ["snyk", "owasp_dependency_check", "cargo_audit"]
+        output: "dependency_vulnerabilities"
+      - agent: security
+        action: "Secret scanning on full git history"
+        tools: ["gitleaks", "trufflehog"]
+        output: "secret_findings"
+
+  stage_4_infra_scan:
+    name: "Infrastructure Security Audit"
+    mode: "parallel"
+    timeout: "30 minutes"
+    depends_on: ["stage_2_threat_model_refresh"]
+    agents:
+      - agent: security
+        action: "IaC security scan (Terraform + K8s manifests)"
+        tools: ["checkov", "tfsec", "kube-bench", "kube-hunter"]
+        output: "iac_findings"
+      - agent: platform_sre
+        action: "Validate SLO error budgets and alert coverage"
+        output: "observability_gaps"
+
+  stage_5_compliance_check:
+    name: "Compliance Validation"
+    timeout: "20 minutes"
+    depends_on: ["stage_3_code_scan", "stage_4_infra_scan"]
+    agent: security
+    action: "Map findings to compliance controls"
+    compliance_frameworks: "${trigger.compliance_frameworks}"
+    output: "compliance_report"
+
+  stage_6_review:
+    name: "Findings Review & Risk Triage"
+    timeout: "20 minutes"
+    depends_on: ["stage_5_compliance_check"]
+    parallel:
+      - agent: dev_reviewer
+        action: "Review code vulnerability findings for false positives"
+        output: "validated_code_findings"
+      - agent: architect
+        action: "Review architecture-level findings for systemic issues"
+        output: "architectural_risk_assessment"
+
+  stage_7_remediation_plan:
+    name: "Remediation Planning"
+    timeout: "20 minutes"
+    depends_on: ["stage_6_review"]
+    agent: ba_token_optimizer
+    action: "Convert validated findings into prioritized remediation tickets"
+    output: "remediation_backlog"
+    priority_rules:
+      P0: "CRITICAL CVSS >= 9.0 OR data breach risk"
+      P1: "HIGH CVSS >= 7.0 OR compliance gap"
+      P2: "MEDIUM CVSS >= 4.0"
+
+  stage_8_notify:
+    name: "Stakeholder Notification"
+    agent: devops
+    action: "Publish audit report and create Jira tickets from remediation backlog"
+    output: "jira_tickets + audit_report_published"
+
+workflow_complete:
+  artifacts:
+    - audit_scope_spec
+    - refreshed_threat_model
+    - full_vulnerability_report
+    - compliance_report
+    - remediation_backlog
+    - jira_tickets

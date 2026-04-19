@@ -1,0 +1,44 @@
+id: audit_trail
+name: "Audit Trail Logger"
+version: "1.0.0"
+category: "shared"
+applicable_to: "all_agents"
+
+description: |
+  Emits a structured audit event for every agent action, decision,
+  and handoff. Creates an immutable trace of the entire workflow
+  for compliance, debugging, and continuous improvement.
+
+event_schema:
+  event_id: "UUID"
+  workflow_id: "UUID"
+  agent_id: "string"
+  action: "string"
+  timestamp: "ISO8601"
+  input_token_count: "int"
+  output_token_count: "int"
+  duration_ms: "int"
+  status: "started|completed|failed|escalated"
+  payload_hash: "sha256 of output payload"
+  metadata:
+    model: "claude-3-5-sonnet|gpt-4o|etc"
+    temperature: "float"
+    retry_count: "int"
+
+trigger_on:
+  - agent_started
+  - tool_called
+  - gate_evaluated
+  - handoff_initiated
+  - escalation_triggered
+  - approval_recorded
+  - deployment_executed
+
+storage:
+  primary: "append-only audit log (JSON Lines)"
+  secondary: "structured database for querying"
+  retention: "90 days hot, 1 year cold"
+
+output:
+  event_id: "UUID of emitted event"
+  status: "logged|failed_to_log"
