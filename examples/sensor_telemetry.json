@@ -1,0 +1,10 @@
+[
+  {"timestamp": "2026-04-19T10:00:00Z", "sensor_id": "temp-01", "reading": 22.5, "status": "ok"},
+  {"timestamp": "2026-04-19T10:01:00Z", "sensor_id": "temp-01", "reading": 22.7, "status": "ok"},
+  {"timestamp": "2026-04-19T10:02:00Z", "sensor_id": "temp-01", "reading": 23.1, "status": "warning"},
+  {"timestamp": "2026-04-19T10:03:00Z", "sensor_id": "temp-01", "reading": 24.5, "status": "error"},
+  {"timestamp": "2026-04-19T10:00:00Z", "sensor_id": "temp-02", "reading": 19.8, "status": "ok"},
+  {"timestamp": "2026-04-19T10:01:00Z", "sensor_id": "temp-02", "reading": 20.1, "status": "ok"},
+  {"timestamp": "2026-04-19T10:02:00Z", "sensor_id": "temp-02", "reading": 19.9, "status": "ok"},
+  {"timestamp": "2026-04-19T10:03:00Z", "sensor_id": "temp-02", "reading": 20.2, "status": "ok"}
+]

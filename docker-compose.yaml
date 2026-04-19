@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: logstream-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: logstream
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Ingestion Service (Hot Path)
+  ingest-service:
+    build:
+      context: ./backend
+    container_name: logstream-ingest
+    command: cargo run --bin ingest_service
+    environment:
+      - DATABASE_URL=postgres://postgres:password@db:5432/logstream
+      - INGEST_PORT=8081
+      - RUST_LOG=info
+    ports:
+      - "8081:8081"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Web API & Admin Service (Cold Path)
+  api-service:
+    build:
+      context: ./backend
+    container_name: logstream-api
+    command: cargo run --bin api_service
+    environment:
+      - DATABASE_URL=postgres://postgres:password@db:5432/logstream
+      - API_PORT=8080
+      - RUST_LOG=info
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # OpenTelemetry Collector to receive OTLP streams
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    container_name: logstream-otel
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+    depends_on:
+      - ingest-service
+
+volumes:
+  postgres_data:
