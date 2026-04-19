@@ -30,22 +30,10 @@ impl AuditService {
 
         let prev_hash = last_hash.unwrap_or_else(|| "0".repeat(64));
 
-        // 2. Construct content for hashing
-        let content = format!(
-            "{}{}{}{}{}",
-            prev_hash,
-            actor,
-            action,
-            resource,
-            details.to_string()
-        );
+        // 2. Calculate current row hash
+        let curr_hash = calculate_row_hash(&prev_hash, actor, action, resource, &details);
 
-        // 3. Calculate current row hash
-        let mut hasher = Sha256::new();
-        hasher.update(content.as_bytes());
-        let curr_hash = hex::encode(hasher.finalize());
-
-        // 4. Insert into DB
+        // 3. Insert into DB
         sqlx::query(
             "INSERT INTO audit_log (actor, action, resource, details, prev_row_hash, curr_row_hash)
              VALUES ($1, $2, $3, $4, $5, $6)"
@@ -62,3 +50,25 @@ impl AuditService {
         Ok(())
     }
 }
+
+pub fn calculate_row_hash(
+    prev_hash: &str,
+    actor: &str,
+    action: &str,
+    resource: &str,
+    details: &Value,
+) -> String {
+    let content = format!(
+        "{}{}{}{}{}",
+        prev_hash,
+        actor,
+        action,
+        resource,
+        details.to_string()
+    );
+
+    let mut hasher = Sha256::new();
+    hasher.update(content.as_bytes());
+    hex::encode(hasher.finalize())
+}
+

@@ -89,14 +89,7 @@ pub async fn ingest_otlp_metrics(
                             if let Some(datapoints) = metric.get("gauge").or(metric.get("sum")).and_then(|g| g.get("dataPoints")).and_then(|d| d.as_array()) {
                                 for dp in datapoints {
                                     if let Some(val) = dp.get("asDouble").and_then(|v| v.as_f64()).or_else(|| dp.get("asInt").and_then(|v| v.as_i64()).map(|i| i as f64)) {
-                                        // Update HdrHistogram for this metric name
-                                        // Histogram stores u64, so we convert ms to u64
-                                        let mut hist = state.metrics.entry(name.to_string()).or_insert_with(|| {
-                                            hdrhistogram::Histogram::<u64>::new_with_bounds(1, 60000, 3).unwrap()
-                                        });
-
-                                        // Record value (clamping to 1ms minimum for the histogram)
-                                        hist.record(val.max(1.0) as u64).ok();
+                                        record_metric(&state.metrics, name, val);
                                     }
                                 }
                             }
@@ -109,3 +102,13 @@ pub async fn ingest_otlp_metrics(
 
     Ok(Json(json!({ "status": "success" })))
 }
+
+pub fn record_metric(metrics: &dashmap::DashMap<String, hdrhistogram::Histogram<u64>>, name: &str, value: f64) {
+    let mut hist = metrics.entry(name.to_string()).or_insert_with(|| {
+        hdrhistogram::Histogram::<u64>::new_with_bounds(1, 60000, 3).unwrap()
+    });
+
+    // Record value (clamping to 1ms minimum for the histogram)
+    hist.record(value.max(1.0) as u64).ok();
+}
+

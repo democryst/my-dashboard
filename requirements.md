@@ -58,6 +58,12 @@ A centralized, high-throughput observability engine that combines real-time Open
         - **Medium**: Maximum 5% of total findings allowed.
 - **[P0] Rust-Native Safety**: Zero memory-safety vulnerabilities.
 - **[P0] RBAC**: Granular permissions (ADMIN, OPERATOR, VIEWER).
+- **[P0] Cryptographic Audit Trail**: Every administrative action must be cryptographically chained via SHA-256 for non-repudiation.
+
+### ✅ Quality & Hardening
+- **[P0] Automated Test Suite**: Critical paths (Audit, DDE, Ingest) must have > 80% integration test coverage.
+    - **AC 1**: Tests must be separated from source code in the `tests/` directory.
+- **[P0] Safe DDL Generation**: Dynamic SQL must be abstracted via a `QueryBuilder` and strictly bound to type-safe operators to prevent injection.
 
 ---
 
@@ -65,7 +71,7 @@ A centralized, high-throughput observability engine that combines real-time Open
 
 - **Exploration Performance**: Sub-second response times for complex analytical queries.
 - **Scalability**: Handle millions of log events per minute.
-- **Surgical Code Organization**: Modular architecture following a "Simplicity First" approach.
+- **Surgical Code Organization**: Modular architecture (Shared `common` crate, decoupled services) following a "Simplicity First" approach.
 
 ---
 
@@ -73,9 +79,10 @@ A centralized, high-throughput observability engine that combines real-time Open
 
 - **Backend**: Rust (Axum, Tokio, SQLx).
 - **Frontend**: Rust (Leptos + WASM).
-- **Database**: PostgreSQL (with TimescaleDB or advanced partitioning).
-- **Visualization Library**: high-performance Rust-WASM plotting engine.
-- **Environment**: Containerized Docker workflow.
+- **Shared**: `common` crate for type-safe models and operators.
+- **Database**: PostgreSQL (with JSONB for dynamic schema).
+- **Testing**: Standalone integration tests in `tests/` directory.
+- **Environment**: Containerized Docker workflow (Decoupled `ingest-service` and `api-service`).
 
 ---
 
@@ -84,6 +91,8 @@ A centralized, high-throughput observability engine that combines real-time Open
 - [x] STAGE 2: Architecture Design (ADRs) complete.
 - [x] STAGE 3: Infrastructure Provisioning (Docker-compose) complete.
 - [x] STAGE 4: Feature Implementation (DDE & Decoupling) complete.
+- [x] STAGE 5: Hardening & Testing (80% critical path coverage) complete.
+- [x] STAGE 6: Engine Refactoring (DdeQueryBuilder) complete.
 - [ ] Successful ingestion and visualization of 1GB+ logs from a single seed job.
-- [ ] Accurate Millisecond-level P99 latency tracking (+/- 1ms margin).
+- [x] Accurate Millisecond-level P99 latency tracking (+/- 1ms margin).
 - [ ] 0 Critical/High CVE findings in the Rust/PostgreSQL stack.

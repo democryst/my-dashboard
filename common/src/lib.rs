@@ -41,8 +41,34 @@ pub struct DynamicTable {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct QueryFilter {
     pub field: String,
-    pub operator: String, // =, >, <, CONTAINS, etc.
-    pub value: serde_json::Value,
+    pub operator: Operator,
+    pub value: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+pub enum Operator {
+    #[serde(rename = "=")]
+    Eq,
+    #[serde(rename = ">")]
+    Gt,
+    #[serde(rename = "<")]
+    Lt,
+    #[serde(rename = ">=")]
+    Gte,
+    #[serde(rename = "<=")]
+    Lte,
+}
+
+impl Operator {
+    pub fn as_sql(&self) -> &'static str {
+        match self {
+            Self::Eq => "=",
+            Self::Gt => ">",
+            Self::Lt => "<",
+            Self::Gte => ">=",
+            Self::Lte => "<=",
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

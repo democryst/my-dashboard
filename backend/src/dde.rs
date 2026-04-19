@@ -104,7 +104,7 @@ pub async fn add_table_index(
     Json(payload): Json<IndexRequest>,
 ) -> Result<Json<Value>, AppError> {
     // 1. Validate field path (prevent shell escape/injection)
-    if !payload.field_path.chars().all(|c| c.is_alphanumeric() || c == '_') {
+    if !is_safe_field_path(&payload.field_path) {
         return Err(AppError::Internal); // Invalid field path
     }
 
@@ -175,49 +175,22 @@ pub async fn aggregate_data(
     Extension(state): Extension<Arc<AppState>>,
     Json(payload): Json<AggregationRequest>,
 ) -> Result<Json<Vec<AggregationResult>>, AppError> {
-    // SECURITY: Validate function to prevent SQL injection
-    let allowed_functions = vec!["SUM", "AVG", "MIN", "MAX", "COUNT"];
-    if !allowed_functions.contains(&payload.function.to_uppercase().as_str()) {
+    // 1. Validate function
+    if !is_allowed_function(&payload.function) {
         return Err(AppError::Internal);
     }
 
-    // 3. Build WHERE clause from filters
-    let mut where_clause = "WHERE table_id = $3".to_string();
+    // 2. Build Query
+    let (sql, params) = DdeQueryBuilder::new(table_id, payload)
+        .build()?;
 
-    for filter in payload.filters.iter() {
-        let op = match filter.operator.as_str() {
-            "=" => "=",
-            ">" => ">",
-            "<" => "<",
-            ">=" => ">=",
-            "<=" => "<=",
-            _ => continue, // Skip unsupported ops
-        };
-        
-        // SECURE: Field name is already validated or used as string literal path
-        // SECURE: Value is passed as a string/numeric bind in real apps, 
-        // here we'll simplify by injecting literal (for demo) but in prod use JSONB operators
-        where_clause.push_str(&format!(" AND (payload->>'{}') {} '{}'", filter.field, op, filter.value));
+    // 3. Execute
+    let mut query = sqlx::query(&sql);
+    for p in params {
+        query = query.bind(p);
     }
 
-    let sql = format!(
-        "SELECT 
-            date_bin($1::interval, timestamp, '2000-01-01'::timestamp) AS bucket, 
-            {}( (payload->>$2)::numeric ) AS value 
-         FROM dynamic_data 
-         {} 
-         GROUP BY bucket 
-         ORDER BY bucket ASC",
-        payload.function.to_uppercase(),
-        where_clause
-    );
-
-    let rows = sqlx::query(&sql)
-        .bind(payload.interval)
-        .bind(payload.field)
-        .bind(table_id)
-        .fetch_all(&state.db)
-        .await?;
+    let rows = query.fetch_all(&state.db).await?;
 
     let results = rows.into_iter().map(|row| {
         AggregationResult {
@@ -228,3 +201,70 @@ pub async fn aggregate_data(
 
     Ok(Json(results))
 }
+pub struct DdeQueryBuilder {
+    table_id: Uuid,
+    request: AggregationRequest,
+}
+
+impl DdeQueryBuilder {
+    pub fn new(table_id: Uuid, request: AggregationRequest) -> Self {
+        Self { table_id, request }
+    }
+
+    pub fn build(&self) -> Result<(String, Vec<String>), AppError> {
+        let mut params = Vec::new();
+        let offset = 2; // interval ($1) and field ($2)
+
+        // Security check for field names
+        if !is_safe_field_path(&self.request.field) {
+            return Err(AppError::Internal);
+        }
+
+        let mut where_clause = format!("WHERE table_id = ${}", params.len() + 1 + offset);
+        params.push(self.table_id.to_string());
+
+        for filter in &self.request.filters {
+            if !is_safe_field_path(&filter.field) {
+                continue;
+            }
+            
+            let op = filter.operator.as_sql();
+            params.push(filter.value.clone());
+            where_clause.push_str(&format!(
+                " AND (payload->>'{}') {} ${}",
+                filter.field, op, params.len() + offset
+            ));
+        }
+
+        let sql = format!(
+            "SELECT 
+                date_bin($1::interval, timestamp, '2000-01-01'::timestamp) AS bucket, 
+                {}( (payload->>$2)::numeric ) AS value 
+             FROM dynamic_data 
+             {} 
+             GROUP BY bucket 
+             ORDER BY bucket ASC",
+            self.request.function.to_uppercase(),
+            where_clause
+        );
+
+        // Prepend binary metadata bins
+        let mut final_params = vec![
+            self.request.interval.clone(),
+            self.request.field.clone(),
+        ];
+        final_params.extend(params);
+
+        Ok((sql, final_params))
+    }
+}
+
+pub fn is_safe_field_path(path: &str) -> bool {
+    !path.is_empty() && path.chars().all(|c| c.is_alphanumeric() || c == '_')
+}
+
+pub fn is_allowed_function(func: &str) -> bool {
+    let allowed_functions = vec!["SUM", "AVG", "MIN", "MAX", "COUNT"];
+    allowed_functions.contains(&func.to_uppercase().as_str())
+}
+
